@@ -9,4 +9,6 @@ The testing is still a work in progress, but the idea is to be able to specify e
 Modify config.json and add what pcaps you want to test from the Pcaps directory, these will be ingested, tested, and verified.
 If you plan on adding new pcaps into the Pcaps directory, you must also add a json file with the same filename as its respective pcap with the expetced output of the test api call for that pcap so the tool knows how to verify it is right.
 
+While this tool will work with both Virtualbox and Libvirt, Virtualbox is much faster and is highly recommended. It has the ability to work with vmware, but I have been unable to test this out.
+
 List of every available pcap to test with this tool came from https://github.com/mmguero-dev/Malcolm-PCAP
