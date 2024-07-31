@@ -1,0 +1,7 @@
+{
+  "pcaps_to_test": [
+    "BACnet.pcap",
+    "BSAP.pcap",
+    "DCERPC.pcap"
+  ]
+}

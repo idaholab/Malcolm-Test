@@ -1,0 +1,315 @@
+- hosts: all
+  become: yes
+
+  # CompleteTest.sh will walk user through setting these variables correctly
+  vars:
+    MALCOLM_REPO: 'https://github.com/mmguero-dev/Malcolm'
+    MALCOLM_VERSION: ''
+    SKIP_BUILD: 0
+
+  tasks:
+
+    - name: Install Aptitude
+      retries: 2
+      changed_when: false
+      ignore_errors: true
+      apt:
+        name: aptitude
+        state: latest
+        update_cache: true
+      when: SKIP_BUILD == 0
+
+    - name: "Installing Packages"
+      changed_when: false
+      ansible.builtin.apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+          - python3
+          - jq
+          - pip 
+          - dialog
+        state: latest
+        update_cache: true
+      when: SKIP_BUILD == 0
+
+    - name: Add Docker's official GPG key
+      retries: 3
+      changed_when: false
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: SKIP_BUILD == 0
+
+
+    - name: Add Docker repository
+      changed_when: false
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable
+        state: present
+      when: SKIP_BUILD == 0
+
+    - name: Install Docker and related packages
+      changed_when: false
+      ansible.builtin.apt:
+        # name: "{{ item }}"
+        pkg:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-buildx-plugin
+        - docker-compose-plugin         
+        state: present
+        update_cache: true
+      when: SKIP_BUILD == 0
+
+    - name: install python packages
+      changed_when: false
+      ansible.builtin.pip:
+        name:
+          - python-dotenv
+          - requests
+          - pyyaml
+          - pythondialog
+          - urllib3
+          - docker
+      when: SKIP_BUILD == 0  
+
+    # if malcom version is specified, then pull specific malcolm version
+    - name: Git Clone Malcolm (specific version)
+      retries: 3
+      changed_when: false
+      ansible.builtin.git:
+        repo: "{{ MALCOLM_REPO }}"
+        clone: true
+        dest: /Malcolm
+        force: true
+        # Use version to specify if a certain branch of Malcolm is what you want
+        # should add functionality to comment this out if no repo_selector version is specified
+        version: "{{ MALCOLM_VERSION }}"
+      when: 
+        - MALCOLM_VERSION != ''
+        - SKIP_BUILD == 0
+
+    # if no version is specified, then omit the version field and pull the latest release
+    - name: Git Clone Malcolm (latest version)
+      retries: 3
+      changed_when: false
+      ansible.builtin.git:
+        repo: "{{ MALCOLM_REPO }}"
+        clone: true
+        dest: /Malcolm
+        force: true
+      when: 
+        - MALCOLM_VERSION == ''
+        - SKIP_BUILD == 0
+
+      # uses the builtin Malcolm helper script to retag so we can build older versions with no modification
+      # only run if specific version is used, I believe running it on the latest version breaks it
+    - name: retag docker images so we can use older Malcolm versions if specified without modification
+      changed_when: false
+      ansible.builtin.shell:
+        chdir: /Malcolm/scripts
+        cmd: "./github_image_helper.sh 4"
+      when: 
+        - MALCOLM_VERSION != ''
+        - SKIP_BUILD == 0
+
+    - name: change owner of Malcolm to vagrant user 
+      become: true
+      changed_when: false
+      shell:
+        chdir: /Malcolm
+        cmd: "chown -R vagrant:vagrant ."
+      when: SKIP_BUILD == 0
+
+    - name: Run install.py as vagrant (if this fails, its probably due to a new version having different command line arguments, you might need to update the arguments for this script)
+      become_user: vagrant
+      changed_when: false
+      ansible.builtin.shell:
+        chdir: /Malcolm/scripts
+        cmd: ./install.py --defaults --restart-malcolm
+      when: SKIP_BUILD == 0
+
+    #### Works now after removing only the "--netbox-preload-prefixes"
+    - name: Run configure script (if this fails, its probably due to a new version of Malcolm having different command line arguments, you might need to update the arguments for this script)
+      become_user: vagrant
+      changed_when: false
+      ansible.builtin.shell:
+        chdir: /Malcolm/scripts/
+        ## This one works with the latest version of malcolm, doesnt work for 23.12.1
+        cmd: "python3 /Malcolm/scripts/configure --defaults --restart-malcolm --auto-arkime --auto-suricata --auto-zeek --zeek-ics --zeek-ics-best-guess --auto-oui --auto-freq --file-extraction notcommtxt --file-preservation quarantined --extracted-file-server --extracted-file-server-password infected --extracted-file-server-zip --extracted-file-capa --extracted-file-clamav --extracted-file-yara --netbox --netbox-enrich --netbox-autopopulate false --netbox-site-name malcolm"
+        
+        # works for 23.12.1
+        # cmd: "python3 /Malcolm/scripts/configure --defaults --auto-arkime --auto-suricata --auto-zeek --zeek-ics --zeek-ics-best-guess --auto-oui --auto-freq"
+      when: SKIP_BUILD == 0
+
+    - name: add vagrant as docker user
+      become: true
+      changed_when: false
+      ansible.builtin.shell:
+        cmd: usermod -a -G docker vagrant
+      when: SKIP_BUILD == 0
+
+    - name: add root as docker user
+      become: true
+      changed_when: false
+      ansible.builtin.command:
+        cmd: usermod -a -G docker root
+      when: SKIP_BUILD == 0
+
+    - name: workaround for docker
+      become: true
+      changed_when: false
+      ansible.builtin.command:
+        cmd: chmod 666 /var/run/docker.sock
+      when: SKIP_BUILD == 0
+      
+    - name: restart docker
+      become: true
+      changed_when: false
+      ansible.builtin.command:
+        cmd: systemctl restart docker
+      when: SKIP_BUILD == 0
+
+    - name: configure auth_setup (if this fails, its probably due to a new version having different command line arguments, you might need to update the arguments for this script)
+      become_user: vagrant
+      changed_when: false
+      ansible.builtin.shell:
+        chdir: /Malcolm/scripts/
+        cmd: "./auth_setup --auth-noninteractive --auth-admin-username analyst --auth-admin-password-openssl '$1$owXoS5pf$YesZKhhWS0d3zVUUhdcef0' --auth-admin-password-htpasswd '$2y$05$a8jiJsLZ1mFnt5srJD3HAOKC8IUaZcOlsqp8txBlmMjW6wUXUtN3S' --auth-generate-webcerts --auth-generate-fwcerts --auth-generate-netbox-passwords"
+      when: SKIP_BUILD == 0
+
+    - name: Pull Malcolm docker containers (This will take a few minutes...longer on a slow network)
+      become: true
+      retries: 3
+      changed_when: false
+      shell:
+        chdir: /Malcolm
+        cmd: "docker compose --profile malcolm pull"
+      when: SKIP_BUILD == 0
+
+    - name: start malcolm (will take a few minutes)
+      become_user: vagrant
+      retries: 5
+      changed_when: false
+      ansible.builtin.command:
+      args:
+        chdir: /Malcolm/scripts
+        cmd: ./start
+      when: SKIP_BUILD == 0
+
+    ###########################################################################################################################################
+    ### Start of testing phase of playbook, time to upload and test pcaps in malcolm. Need to figure out how I want to make this extensible ###
+    ###########################################################################################################################################
+
+    ## Can now skip the build if you want to keep a VM but rerun new test pcaps
+
+    - name: move pcaps specified in config.json to Malcolm (will fail if no pcaps are in config.json)
+      changed_when: false 
+      ignore_errors: true
+      ansible.builtin.shell:
+        cmd: mv /vagrant/tests/* /Malcolm/pcap/upload/
+
+    # Logstash tasks are there to verify that Malcolm is ready for pcaps to be ingested
+    - name: Creating script to wait for logstash
+      changed_when: false
+      ansible.builtin.copy:
+        dest: "/Malcolm/scripts/logstash_wait.sh"
+        content: |
+          #!/bin/bash
+
+          until docker compose --profile malcolm -f /Malcolm/docker-compose.yml logs logstash 2>/dev/null | grep -q "Pipelines running"; do
+            [[ -n -v ]] && echo "waiting for Malcolm to become ready for PCAP data..." >&2
+            sleep 10
+          done
+
+    - name: make logstash_wait.sh executable
+      become: true
+      changed_when: false
+      ansible.builtin.shell:
+        chdir: /Malcolm/scripts/
+        cmd: chmod +x /Malcolm/scripts/logstash_wait.sh
+
+    - name: run logstash_wait.sh until logstash is ready to ingest pcaps
+      changed_when: false
+      ansible.builtin.shell:
+        chdir: /Malcolm/scripts
+        cmd: ./logstash_wait.sh
+
+    # this script waits for log count to remain idle (checking if all pcaps have been ingested)
+    # stolen from Seth in the Malcolm scripts directory
+    # This will obviously take a lot of time if many pcaps are ingested, so keep that in mind when uploading pcaps
+    # The wait times might need to still be tweaked, there have been a few cases of the script exiting before all the pcaps are ingested
+    - name: create seth's Malcolm processing checker
+      changed_when: false
+      ansible.builtin.copy:
+        dest:  /Malcolm/scripts/processing_check.sh
+        content: |
+          #!/bin/bash
+
+          NUMERIC_REGEX='^[0-9]+$'
+          PCAP_PROCESS_PRE_WAIT=30
+          PCAP_PROCESS_IDLE_SECONDS=120
+          PCAP_PROCESS_IDLE_MAX_SECONDS=4800
+
+          if (( $PCAP_PROCESS_IDLE_SECONDS > 0 )); then
+            # wait for processing to finish out (count becomes "idle", no longer increasing)
+            sleep $PCAP_PROCESS_PRE_WAIT
+            LAST_LOG_COUNT=0
+            LAST_LOG_COUNT_CHANGED_TIME=$(date -u +%s)
+            FIRST_LOG_COUNT_TIME=$LAST_LOG_COUNT_CHANGED_TIME
+            while true; do
+
+              # if it's been more than the maximum wait time, bail
+              CURRENT_TIME=$(date -u +%s)
+              if (( ($CURRENT_TIME - $FIRST_LOG_COUNT_TIME) >= $PCAP_PROCESS_IDLE_MAX_SECONDS )); then
+                [[ -n -v ]] && echo "Max wait time expired waiting for idle state" >&2
+                break
+              fi
+
+              # get the total number of session records in the database
+              NEW_LOG_COUNT=$(( docker compose --profile malcolm -f /Malcolm/docker-compose.yml exec -u $(id -u) -T api \
+                                curl -k -sSL "http://localhost:5000/mapi/agg/event.provider?from=1970" | \
+                                jq -r '.. | .buckets? // empty | .[] | objects | [.doc_count|tostring] | join ("")' | \
+                                awk '{s+=$1} END {print s}') 2>/dev/null )
+              if [[ $NEW_LOG_COUNT =~ $NUMERIC_REGEX ]] ; then
+                [[ -n -v ]] && echo "Waiting for idle state ($NEW_LOG_COUNT logs) ..." >&2
+                NEW_LOG_COUNT_TIME=$CURRENT_TIME
+
+                if (( $LAST_LOG_COUNT == $NEW_LOG_COUNT )); then
+                  # the count hasn't changed, so compare against how long we've been idle
+                  if (( ($NEW_LOG_COUNT_TIME - $LAST_LOG_COUNT_CHANGED_TIME) >= $PCAP_PROCESS_IDLE_SECONDS )); then
+                    [[ -n -v ]] && echo "Idle state reached ($NEW_LOG_COUNT logs for at least $PCAP_PROCESS_IDLE_SECONDS seconds)" >&2
+                    break
+                  fi
+
+                else
+                  # the count has changed, no longer idle, reset the non-idle time counter
+                  LAST_LOG_COUNT=$NEW_LOG_COUNT
+                  LAST_LOG_COUNT_CHANGED_TIME=$NEW_LOG_COUNT_TIME
+                fi
+
+              else
+                echo "Failed to get log count, will retry!" >&2
+                sleep 30
+              fi
+              sleep 10
+            done
+          fi
+      
+    - name: make processing_check.sh executable
+      become: true 
+      changed_when: false
+      ansible.builtin.command:
+        cmd: "chmod +x /Malcolm/scripts/processing_check.sh"
+
+    - name: run processing_check.sh (This will take a very long time depending on how large the pcaps are and how powerful your vm is)
+      changed_when: false 
+      ansible.builtin.command:
+        chdir: /Malcolm/scripts
+        cmd: ./processing_check.sh
+    
