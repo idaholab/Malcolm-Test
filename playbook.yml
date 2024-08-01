@@ -3,7 +3,7 @@
 
   # CompleteTest.sh will walk user through setting these variables correctly
   vars:
-    MALCOLM_REPO: 'https://github.com/cisagov/Malcolm.git'
+    MALCOLM_REPO: 'https://github.com/idaholab/Malcolm'
     MALCOLM_VERSION: ''
     SKIP_BUILD: 0
 
@@ -254,7 +254,7 @@
           NUMERIC_REGEX='^[0-9]+$'
           PCAP_PROCESS_PRE_WAIT=30
           PCAP_PROCESS_IDLE_SECONDS=120
-          PCAP_PROCESS_IDLE_MAX_SECONDS=4800
+          PCAP_PROCESS_IDLE_MAX_SECONDS=6800
 
           if (( $PCAP_PROCESS_IDLE_SECONDS > 0 )); then
             # wait for processing to finish out (count becomes "idle", no longer increasing)

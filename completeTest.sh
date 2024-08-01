@@ -110,12 +110,6 @@ for pcap in "${pcaps_to_test[@]}"; do
         pcap_no_ext="${pcap%.*}"
         TAGS+=("$pcap_no_ext")
 
-        # if [ -f "Pcaps/checks/$pcap_no_ext.json" ]; then
-        #     cp "Pcaps/checks/$pcap_no_ext.json" "Checks/"
-        #     echo "Copied $pcap_no_ext.json to Checks/ folder"
-        # else
-        #     echo -e "${RED} Warning: $pcap_no_ext.json not found in /Pcaps/checks. Skipping ${NC}"
-        # fi
     else
         echo -e "${RED} Warning: $pcap not found in pcaps/. Skipping ${NC}"
     fi
@@ -202,9 +196,81 @@ if [ $LIBVIRT -eq 1 ]; then
 
 fi
 
-# not working as of now, dont use this
+# This has never been tested, havent been able to get vmware on my linux system
 if [ $VMWARE -eq 1 ]; then    
-    sudo vagrant up --provider vmware_desktop
+
+    if sudo vagrant status | grep "running" &> /dev/null; then
+        # Prompt the user to run `sudo vagrant provision`
+        read -p "Vagrant VM is already running. Do you want to rerun provisioner? Note: if you reupload the same pcaps multiple times, the tests will fail as it is only expecting 1 of each pcap, adjust your config.json file each rerun [y/n]: " answer
+        if [ "$answer" = "y" ]; then
+            
+            read -p "Do you want to skip rebuilding Malcolm? (skip if Malcolm is already built and you want to rerun and test new pcaps) [y/n]: " skip_build_answer
+            if [ "$skip_build_answer" = "y" ]; then
+                # Set SKIP_BUILD to 1 in the playbook
+                sed -i '/^ *SKIP_BUILD:/ s/[0-9][0-9]*/1/' playbook.yml
+            else
+                # Set SKIP_BUILD to 0 in the playbook
+                sed -i '/^ *SKIP_BUILD:/ s/[0-9][0-9]*/0/' playbook.yml
+            fi
+
+            # resync shared folder so vm knows what tests to run from our host
+            sudo vagrant rsync
+            
+            # rerun playbook
+            sudo vagrant provision
+
+            # cleanup for future runs so it will build again
+            sed -i '/^ *SKIP_BUILD:/ s/[0-9][0-9]*/0/' playbook.yml
+
+        fi
+    else 
+        sudo vagrant up --provider vmware_desktop
+
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Error: Failed to start the Vagrant VM or Ansible playbook failed.${NC}"
+            exit 1 
+        fi
+    fi
+
+    # Ping Check
+    curl -k --location 'https://localhost:8080/mapi/ping' --header 'Authorization: Basic YW5hbHlzdDpNQGxjMGxt' > results/ping.json 2>/dev/null
+    if [ -f "pcaps/checks/ping.json" ] && [ -f "results/ping.json" ]; then
+        diff "pcaps/checks/ping.json" "results/ping.json" > /dev/null
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}Ping test succesful${NC}"
+        else
+            echo -e "${RED}Ping test failed${NC}"
+            diff "pcaps/checks/ping.json" "results/ping.json"
+        fi
+    else
+        echo -e "${RED}Error: Missing check file or result file for tag '${tag}'.${NC}"
+    fi
+
+
+    #This loop will do an api call for each tag (pcap) ingested during the test
+    for tag in "${TAGS[@]}"; do 
+
+        # This pulls every session in arkime with the specified tag, loops through all tags used for this test
+        # Also removes recordsFiltered data as it changes based on how many pcaps were ingested which would break our tests
+        curl -k --location "https://localhost:8080/arkime/api/sessions?expression=tags%3d%3d${tag}&date=-1" --header 'Authorization: Basic YW5hbHlzdDpNQGxjMGxt' > results/${tag}.json 2>/dev/null
+
+        recordsFiltered=$(jq -r '.recordsFiltered' "results/${tag}.json")
+
+        if ! [[ $recordsFiltered =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Error: recordsFiltered is not a valid integer in results/${tag}.json.${NC}"
+            continue
+        fi
+
+        expected=$(cat "pcaps/checks/$tag.txt")
+
+        if [ "$recordsFiltered" -eq "$expected" ]; then 
+            echo -e "${GREEN}$tag test was successful, recordsFiltered value matches the expected value${NC}"
+        else
+            echo -e "${RED}$tag test failed, recordsFiltered value ($recordsFiltered) does not match the expected value ($expected)${NC}"
+        fi
+
+    done
+
 fi
 
 if [ $VBOX -eq 1 ]; then
