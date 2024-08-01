@@ -3,7 +3,7 @@
 
   # CompleteTest.sh will walk user through setting these variables correctly
   vars:
-    MALCOLM_REPO: 'https://github.com/mmguero-dev/Malcolm'
+    MALCOLM_REPO: 'https://github.com/cisagov/Malcolm.git'
     MALCOLM_VERSION: ''
     SKIP_BUILD: 0
 

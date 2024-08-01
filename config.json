@@ -2,6 +2,16 @@
   "pcaps_to_test": [
     "BACnet.pcap",
     "BSAP.pcap",
-    "DCERPC.pcap"
+    "DCERPC.pcap",
+    "DHCP.pcap",
+    "DNP3.pcap",
+    "DNS.pcap",
+    "ENIP.pcap",
+    "ETHERCAT.pcap",
+    "FTP.pcap",
+    "GENISYS.pcap",
+    "HTTP_1.pcap",
+    "HTTP_2.pcap",
+    "IPsec.pcap"
   ]
 }
