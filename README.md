@@ -10,6 +10,4 @@ Modify config.json and add what pcaps you want to test from the Pcaps directory,
 
 While this tool will work with both Virtualbox and Libvirt, Virtualbox is much faster and is highly recommended. It has the ability to work with vmware, but I have been unable to test this out.
 
-While this tool will work with both Virtualbox and Libvirt, Virtualbox is much faster and is highly recommended. It has the ability to work with vmware, but I have been unable to test this out.
-
 List of every available pcap to test with this tool came from https://github.com/mmguero-dev/Malcolm-PCAP
