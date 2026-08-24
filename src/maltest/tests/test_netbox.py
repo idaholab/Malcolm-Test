@@ -74,7 +74,7 @@ EXPECTED_SCRIPTS = {
 # they happen to overlap with the IP range specified to test `NETBOX_AUTO_POPULATE_SUBNETS`
 # in so I'm just excluding them here.
 LOGSTASH_NETBOX_ENRICHMENT_DATASETS = [
-    "filescan.strelka",
+    # "filescan.strelka",
     "suricata.alert",
     "zeek.conn",
     # "zeek.dce_rpc",
