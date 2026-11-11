@@ -20,7 +20,7 @@ Package: *
 Pin: origin download.opensuse.org
 Pin-Priority: 1
 
-Package: buildah catatonit conmon containernetworking containernetworking-plugins containers-common cri-o-runc crun libcharon-standard-plugins libslirp0 passt podman podman-aardvark-dns podman-netavark python3-podman-compose slirp4netns
+Package: buildah catatonit conmon containernetworking containernetworking-plugins containers-common containers-storage cri-o-runc crun libcharon-standard-plugins libslirp0 passt podman podman-aardvark-dns podman-netavark python3-podman-compose skopeo slirp4netns
 Pin: origin download.opensuse.org
 Pin-Priority: 1001
 EOT
