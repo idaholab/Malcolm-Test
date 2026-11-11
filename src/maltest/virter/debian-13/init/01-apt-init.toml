@@ -10,6 +10,7 @@ sudo apt-get -y -q --no-install-recommends install \
     bash \
     bat \
     bc \
+    build-essential \
     bzip2 \
     ca-certificates \
     curl \
@@ -29,6 +30,7 @@ sudo apt-get -y -q --no-install-recommends install \
     jq \
     less \
     lz4 \
+    make \
     moreutils \
     ncat \
     netcat-openbsd \
@@ -37,11 +39,14 @@ sudo apt-get -y -q --no-install-recommends install \
     psmisc \
     pv \
     python3-dialog \
+    python3-dev \
     python3-dotenv \
+    python3-pip \
     python3-requests \
     python3-ruamel.yaml \
     ripgrep \
     rsync \
+    ruby \
     socat \
     tmux \
     unzip \

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "malcolm-test"
-version = "0.14.10"
+version = "0.15.0"
 authors = [
   { name="Seth Grover", email="mero.mero.guero@gmail.com" },
 ]
@@ -18,7 +18,7 @@ classifiers = [
 ]
 dependencies = [
   'beautifulsoup4==4.15.0',
-  'mmguero>=2.2.3',
+  'mmguero>=2.2.4',
   'elasticsearch-dsl==8.18.0',
   'elasticsearch==8.19.3',
   'opensearch-py==3.2.0',
@@ -29,7 +29,7 @@ dependencies = [
   'requests==2.34.2',
   'stream-unzip==0.0.101',
   'tomli-w==1.2.0',
-  'tomli==2.4.1'
+  'tomli==2.5.0'
 ]
 
 [project.urls]

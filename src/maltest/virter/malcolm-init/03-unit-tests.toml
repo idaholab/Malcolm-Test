@@ -1,0 +1,88 @@
+version = 1
+
+[env]
+VERBOSE = ""
+PYTEST_ARGS = ""
+UNIT_TEST_REQUIREMENTS = "./shared/tests/requirements.txt"
+UNIT_TEST_PATH = "shared/tests/"
+FILESCAN_MAKE_PATH = "filescan/python-filescan"
+
+[[steps]]
+[steps.shell]
+script = '''
+( [[ -n "${VERBOSE:-}" ]] && [[ "${VERBOSE}" != "false" ]] && [[ "${VERBOSE}" != "0" ]] ) && DEBUG=true || DEBUG=false
+[[ "${DEBUG}" == "true" ]] && set -x
+
+# ~/.local/bin is where "pip install --user" puts console scripts
+export PATH="$HOME/.local/bin:$PATH"
+
+# fall back to sane defaults if virter did not supply the [env] values
+REQUIREMENTS_FILE="${UNIT_TEST_REQUIREMENTS:-./shared/tests/requirements.txt}"
+TEST_PATH="${UNIT_TEST_PATH:-shared/tests/}"
+MAKE_PATH="${FILESCAN_MAKE_PATH:-filescan/python-filescan}"
+
+# tracks the first non-zero exit so that every phase gets a chance to run and log
+# before provisioning is failed at the very end
+FAILED=0
+FAILED_PHASES=()
+
+note_failure() {
+    local phase="$1"
+    local code="$2"
+    FAILED=1
+    FAILED_PHASES+=( "${phase} (exit ${code})" )
+    echo "ERROR: ${phase} failed with exit code ${code}" >&2
+}
+
+if [[ ! -d "$HOME"/Malcolm ]]; then
+    echo "ERROR: $HOME/Malcolm does not exist, cannot run Malcolm unit tests" >&2
+    exit 1
+fi
+
+pushd "$HOME"/Malcolm >/dev/null
+
+# 1. install the unit tests' Python dependencies
+#    Debian 13 marks system Python as externally managed (PEP 668), so
+#    --break-system-packages is required even for a --user install
+if [[ -f "${REQUIREMENTS_FILE}" ]]; then
+    echo "Installing Malcolm unit test requirements..."
+    python3 -m pip install --user --break-system-packages --no-input \
+        -r "${REQUIREMENTS_FILE}" || note_failure "pip install" "$?"
+else
+    echo "ERROR: ${REQUIREMENTS_FILE} not found" >&2
+    note_failure "pip install" 1
+fi
+
+# 2. build the python-filescan extension the tests import
+if [[ -d "${MAKE_PATH}" ]]; then
+    echo "Building ${MAKE_PATH}..."
+    make -C "${MAKE_PATH}" || note_failure "make -C ${MAKE_PATH}" "$?"
+else
+    echo "ERROR: ${MAKE_PATH} not found" >&2
+    note_failure "make -C ${MAKE_PATH}" 1
+fi
+
+# 3. run the unit tests; any test failure must fail provisioning
+if [[ -d "${TEST_PATH}" ]]; then
+    echo "Running Malcolm unit tests in ${TEST_PATH}..."
+    # invoked as "python3 -m pytest" so it works regardless of whether
+    # the pytest console script landed on PATH
+    python3 -m pytest ${PYTEST_ARGS:-} "${TEST_PATH}" || note_failure "pytest ${TEST_PATH}" "$?"
+else
+    echo "ERROR: ${TEST_PATH} not found" >&2
+    note_failure "pytest ${TEST_PATH}" 1
+fi
+
+popd >/dev/null
+
+if [[ "${FAILED}" -ne 0 ]]; then
+    echo "" >&2
+    echo "Malcolm unit test provisioning failed:" >&2
+    for phase in "${FAILED_PHASES[@]}"; do
+        echo "  - ${phase}" >&2
+    done
+    exit 1
+fi
+
+echo "Malcolm unit tests passed"
+'''
